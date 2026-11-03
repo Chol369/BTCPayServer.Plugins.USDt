@@ -56,10 +56,10 @@ public sealed class USDtTrackedInvoiceProvider
 
             if (!state.Bootstrapped)
             {
-                var expiredInvoices = await _invoiceSource.GetExpiredInvoicesSince(
+                var closedInvoices = await _invoiceSource.GetClosedInvoicesSince(
                     now - BootstrapLookback,
                     cancellationToken);
-                AddMatchingInvoices(state.Invoices, paymentMethodId, expiredInvoices);
+                AddMatchingInvoices(state.Invoices, paymentMethodId, closedInvoices);
                 state.Bootstrapped = true;
                 state.LastRefresh = now;
             }
@@ -98,7 +98,11 @@ public sealed class USDtTrackedInvoiceProvider
         if (USDtListenerShared.StatusToTrack.Contains(invoice.Status))
             return true;
 
-        return invoice.Status == InvoiceStatus.Expired && invoice.MonitoringExpiration > now;
+        // An expired or settled invoice keeps its address for the monitoring
+        // window, so a late or repeated transfer lands on the invoice that was
+        // paid, not on whoever is handed the address next.
+        return invoice.Status is InvoiceStatus.Expired or InvoiceStatus.Settled
+               && invoice.MonitoringExpiration > now;
     }
 
     private async Task RefreshKnownInvoices(TrackingState state, CancellationToken cancellationToken)
@@ -145,7 +149,9 @@ internal interface IUSDtInvoiceSource
         PaymentMethodId paymentMethodId,
         CancellationToken cancellationToken);
 
-    Task<InvoiceEntity[]> GetExpiredInvoicesSince(
+    // Expired and settled invoices created since startDate: the closed
+    // invoices that can still hold a pool address.
+    Task<InvoiceEntity[]> GetClosedInvoicesSince(
         DateTimeOffset startDate,
         CancellationToken cancellationToken);
 
@@ -163,17 +169,25 @@ internal sealed class InvoiceRepositoryUSDtInvoiceSource(InvoiceRepository invoi
         return invoiceRepository.GetMonitoredInvoices(paymentMethodId, true, cancellationToken);
     }
 
-    public Task<InvoiceEntity[]> GetExpiredInvoicesSince(
+    public Task<InvoiceEntity[]> GetClosedInvoicesSince(
         DateTimeOffset startDate,
         CancellationToken cancellationToken)
     {
-        return invoiceRepository.GetInvoices(new InvoiceQuery
+        return invoiceRepository.GetInvoices(ClosedInvoicesQuery(startDate), cancellationToken);
+    }
+
+    // Archiving hides an invoice from the list; it does not end its monitoring
+    // window, and the refresh keeps archived invoices, so the bootstrap after
+    // a restart loads them too.
+    internal static InvoiceQuery ClosedInvoicesQuery(DateTimeOffset startDate)
+    {
+        return new InvoiceQuery
         {
-            Status = [InvoiceStatus.Expired.ToString()],
+            Status = [InvoiceStatus.Expired.ToString(), InvoiceStatus.Settled.ToString()],
             StartDate = startDate,
-            IncludeArchived = false,
+            IncludeArchived = true,
             OrderByDesc = false
-        }, cancellationToken);
+        };
     }
 
     public Task<InvoiceEntity[]> GetInvoices(

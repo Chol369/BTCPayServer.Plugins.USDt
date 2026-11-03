@@ -32,7 +32,7 @@
 <div class="row">
     <div class="col-md-8">
         <p class="mb-0">
-            Configures the addresses used for payments by your customers. Each address is reserved for the time of payment and settlement, so we advise you to set several addresses.
+            Configures the addresses used for payments by your customers. Each address stays reserved from the moment it is handed to a customer until that invoice's monitoring window ends, also after expiration or settlement, so we advise you to set several addresses.
         </p>
         <form method="post"
               asp-route-storeId="@Context.GetRouteValue("storeId")"
@@ -67,7 +67,7 @@
                     <th>Address</th>
                     <th>Balance</th>
                     <th>
-                        <span data-bs-toggle="tooltip" data-bs-placement="top" title="Addresses are attached to pending payments and free after settlement.">Free or used? <vc:icon symbol="info"/></span>
+                        <span data-bs-toggle="tooltip" data-bs-placement="top" title="Addresses stay attached to their invoice until its monitoring window ends, also after expiration or settlement.">Free or used? <vc:icon symbol="info"/></span>
                     </th>
                     <th class="actions-col" permission="@Policies.CanModifyStoreSettings">Actions</th>
                 </tr>

@@ -33,7 +33,7 @@ For production, use a private TRON node or a dedicated, authenticated RPC provid
 
 ### Late-payment monitoring
 
-USDt invoice destinations remain reserved and monitored after invoice expiration until BTCPay's monitoring-expiration period ends. This grace period applies to TRON and EVM chains and is controlled by the store's existing invoice monitoring-expiration setting; the plugin does not add a separate setting. Payments discovered after invoice expiration keep BTCPay's `PaidLate` status.
+USDt invoice destinations remain reserved and monitored after invoice expiration, and after settlement, until BTCPay's monitoring-expiration period ends, so a late or repeated transfer lands on the invoice that holds the address rather than on the next invoice. This grace period applies to TRON and EVM chains and is controlled by the store's existing invoice monitoring-expiration setting; the plugin does not add a separate setting. Payments discovered after invoice expiration keep BTCPay's `PaidLate` status.
 
 ## 🚀 Installation
 

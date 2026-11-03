@@ -377,7 +377,7 @@ public class USDtTransferListenerTests
         public Exception? HistoryError { get; set; }
 
         public Task<InvoiceEntity[]> GetMonitoredInvoices(PaymentMethodId pmi, CancellationToken ct) => Task.FromResult(MonitoredInvoices);
-        public Task<InvoiceEntity[]> GetExpiredInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult(ExpiredInvoices);
+        public Task<InvoiceEntity[]> GetClosedInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult(ExpiredInvoices);
         public Task<InvoiceEntity[]> GetInvoices(string[] ids, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();

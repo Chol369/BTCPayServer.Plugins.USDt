@@ -194,7 +194,7 @@ public class AddressPoolTests
     private sealed class ReservedInvoice(InvoiceEntity invoice) : IUSDtInvoiceSource
     {
         public Task<InvoiceEntity[]> GetMonitoredInvoices(PaymentMethodId id, CancellationToken ct) => Task.FromResult(new[] { invoice });
-        public Task<InvoiceEntity[]> GetExpiredInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
+        public Task<InvoiceEntity[]> GetClosedInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
         public Task<InvoiceEntity[]> GetInvoices(string[] ids, CancellationToken ct) => Task.FromResult(new[] { invoice });
     }
 }

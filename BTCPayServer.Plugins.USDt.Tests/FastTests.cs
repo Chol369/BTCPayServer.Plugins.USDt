@@ -97,6 +97,7 @@ public class FastTests : UnitTestBase
                 CreateInvoice("grace", InvoiceStatus.Expired, now.AddMinutes(10), paymentMethodId, "TGrace"),
                 CreateInvoice("past-grace", InvoiceStatus.Expired, now.AddSeconds(-1), paymentMethodId, "TPast"),
                 CreateInvoice("settled", InvoiceStatus.Settled, now.AddMinutes(10), paymentMethodId, "TSettled"),
+                CreateInvoice("settled-past", InvoiceStatus.Settled, now.AddSeconds(-1), paymentMethodId, "TSettledPast"),
                 CreateInvoice("invalid", InvoiceStatus.Invalid, now.AddMinutes(10), paymentMethodId, "TInvalid")
             ]
         };
@@ -104,13 +105,13 @@ public class FastTests : UnitTestBase
 
         var tracked = await provider.GetTrackedInvoices(paymentMethodId, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["grace", "new", "processing"], tracked.Select(invoice => invoice.Id).Order().ToArray());
+        Assert.Equal(["grace", "new", "processing", "settled"], tracked.Select(invoice => invoice.Id).Order().ToArray());
         Assert.Equal(now - USDtTrackedInvoiceProvider.BootstrapLookback, source.ExpiredStartDate);
         Assert.Equal(1, source.ExpiredQueryCount);
     }
 
     [Fact]
-    public async Task TrackedInvoiceRefreshReleasesSettledInvoices()
+    public async Task TrackedInvoiceRefreshKeepsSettledInvoicesUntilMonitoringExpiration()
     {
         var now = DateTimeOffset.Parse("2026-08-21T12:00:00Z");
         var paymentMethodId = new PaymentMethodId("USDT-TRON");
@@ -132,8 +133,13 @@ public class FastTests : UnitTestBase
         ];
         timeProvider.UtcNow += USDtTrackedInvoiceProvider.RefreshInterval;
 
-        Assert.Empty(await provider.GetTrackedInvoices(paymentMethodId, TestContext.Current.CancellationToken));
+        // Paid, but still inside its monitoring window: the address stays held.
+        Assert.Single(await provider.GetTrackedInvoices(paymentMethodId, TestContext.Current.CancellationToken));
         Assert.Equal(1, source.RefreshQueryCount);
+
+        timeProvider.UtcNow = now.AddHours(1);
+
+        Assert.Empty(await provider.GetTrackedInvoices(paymentMethodId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -158,6 +164,49 @@ public class FastTests : UnitTestBase
         timeProvider.UtcNow = now.AddMinutes(5);
 
         Assert.Empty(await USDtPaymentMethodConfig.GetReservedAddresses(paymentMethodId, provider));
+    }
+
+    [Fact]
+    public async Task SettledInvoiceHoldsAddressUntilMonitoringExpiration()
+    {
+        var now = DateTimeOffset.Parse("2026-08-21T12:00:00Z");
+        var paymentMethodId = new PaymentMethodId("USDT-TRON");
+        var timeProvider = new TestTimeProvider(now);
+        var source = new TestInvoiceSource
+        {
+            ExpiredInvoices =
+            [
+                CreateInvoice("paid", InvoiceStatus.Settled, now.AddMinutes(5), paymentMethodId, "TPaid")
+            ]
+        };
+        var provider = new USDtTrackedInvoiceProvider(source, timeProvider);
+
+        Assert.Equal(
+            ["TPaid"],
+            await USDtPaymentMethodConfig.GetReservedAddresses(paymentMethodId, provider));
+
+        timeProvider.UtcNow = now.AddMinutes(5);
+
+        Assert.Empty(await USDtPaymentMethodConfig.GetReservedAddresses(paymentMethodId, provider));
+    }
+
+    [Fact]
+    public async Task SettledInvoiceStaysReservedWhileNewCheckoutIsCreated()
+    {
+        var now = DateTimeOffset.Parse("2026-08-21T12:00:00Z");
+        var paymentMethodId = new PaymentMethodId("USDT-TRON");
+        var source = new TestInvoiceSource
+        {
+            ExpiredInvoices =
+            [
+                CreateInvoice("paid", InvoiceStatus.Settled, now.AddHours(1), paymentMethodId, "TPaid")
+            ]
+        };
+        var provider = new USDtTrackedInvoiceProvider(source, new TestTimeProvider(now));
+        var config = new TronUSDtPaymentMethodConfig { Addresses = ["TPaid", "TNext"] };
+
+        // The next checkout must not be handed the address that was just paid.
+        Assert.Equal("TNext", await config.GetOneNotReservedAddress(paymentMethodId, provider));
     }
 
     [Fact]
@@ -992,7 +1041,7 @@ public class FastTests : UnitTestBase
             return Task.FromResult(MonitoredInvoices);
         }
 
-        public Task<InvoiceEntity[]> GetExpiredInvoicesSince(
+        public Task<InvoiceEntity[]> GetClosedInvoicesSince(
             DateTimeOffset startDate,
             CancellationToken cancellationToken)
         {

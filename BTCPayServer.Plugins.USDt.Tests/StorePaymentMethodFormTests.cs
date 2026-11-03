@@ -668,7 +668,7 @@ public class StorePaymentMethodFormTests
     private sealed class EmptyInvoices : IUSDtInvoiceSource
     {
         public Task<InvoiceEntity[]> GetMonitoredInvoices(PaymentMethodId id, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
-        public Task<InvoiceEntity[]> GetExpiredInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
+        public Task<InvoiceEntity[]> GetClosedInvoicesSince(DateTimeOffset since, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
         public Task<InvoiceEntity[]> GetInvoices(string[] ids, CancellationToken ct) => Task.FromResult<InvoiceEntity[]>([]);
     }
 
